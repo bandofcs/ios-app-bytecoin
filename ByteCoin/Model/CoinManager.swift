@@ -7,15 +7,56 @@
 //
 
 import Foundation
-
+protocol CoinManagerDelegate {
+    func didUpdateRate(coinData:CoinData)
+    func didFailWithError(error:Error)
+}
 struct CoinManager {
-    
+    var delegate : CoinManagerDelegate?
     let baseURL = "https://rest.coinapi.io/v1/exchangerate/BTC"
-    let apiKey = "YOUR_API_KEY_HERE"
+    let apiKey = "apikey"
     
     let currencyArray = ["AUD", "BRL","CAD","CNY","EUR","GBP","HKD","IDR","ILS","INR","JPY","MXN","NOK","NZD","PLN","RON","RUB","SEK","SGD","USD","ZAR"]
 
     func getCoinPrice (for currency : String){
-        
+        let urlString="\(baseURL)/\(currency)?apikey=\(apiKey)"
+        //print(urlString)
+        performRequest(urlString: urlString)
     }
+    func performRequest(urlString:String){
+        //Create the URL
+        if let url=URL(string: urlString){
+            //Create a URLsession
+            let session=URLSession(configuration: .default)
+            //Give the session a task
+            let task=session.dataTask(with: url) { data, response, error in
+                if error != nil{
+                    self.delegate?.didFailWithError(error: error!)
+                    return
+                }
+                if let safeData=data{
+                    if let coin = parseJSON(safeData){
+                        self.delegate?.didUpdateRate(coinData: coin)
+                    }
+                }
+            }
+            //Start the task
+            task.resume()
+        }
+    }
+    func parseJSON(_ data:Data)->CoinData?{
+        let decoder=JSONDecoder()
+        do{
+            let decodedData = try decoder.decode(CoinData.self,from:data)
+            let currency = decodedData.asset_id_quote
+            let lastPrice = decodedData.rate
+            let coinData = CoinData(asset_id_quote:currency, rate:lastPrice)
+            print("\(coinData.asset_id_quote) & \(coinData.rate)")
+            return coinData
+        }catch{
+            self.delegate?.didFailWithError(error: error)
+            return nil
+        }
+    }
+    
 }
